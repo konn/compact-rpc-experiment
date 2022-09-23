@@ -18,6 +18,7 @@ import Control.Arrow ((>>>))
 import Control.Lens ((^.))
 import Control.Monad (join)
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Short as SBS
 import Data.Char (toLower)
 import Data.Compact (compact, getCompact)
 import Data.Compact.Streaming
@@ -50,10 +51,10 @@ data ClientCfg = ClientCfg
 data Mode = Server ServerCfg | Client ClientCfg
   deriving (Show, Eq, Ord, Generic)
 
-data Command = Hello | Message BS.ByteString | Bye
+data Command = Hello | Message SBS.ShortByteString | Bye
   deriving (Show, Eq, Ord, Generic)
 
-data Response = Welcome | WhatDoYouMean BS.ByteString | MissYou
+data Response = Welcome | WhatDoYouMean SBS.ShortByteString | MissYou
   deriving (Show, Eq, Ord, Generic)
 
 commonCfgP :: Opts.Parser CommonCfg
@@ -122,11 +123,11 @@ runClient :: ClientCfg -> IO ()
 runClient cfg = do
   putStrLn "Client Mode."
   connect (cfg ^. #serverAddress) (show $ cfg ^. #serverPort) $ \(conn, addr) -> do
-    loop conn addr `finally` (S.yield Bye & S.mapM compact & encodes & toSocket conn)
+    loop conn addr
   where
     loop conn addr = do
       putStrLn $ "Connected to: " <> show addr
-      logging conn `race_` sending conn
+      logging conn `concurrently_` sending conn
     sending conn =
       (S.yield Hello >> S.map parseCommand S.stdinLn)
         & S.break (== Bye)
@@ -154,8 +155,8 @@ parseCommand inp@('/' : rest) =
   case map toLower rest of
     "bye" -> Bye
     "hello" -> Hello
-    _ -> Message $ BS.pack inp
-parseCommand cmd = Message $ BS.pack cmd
+    _ -> Message $ SBS.toShort $ BS.pack inp
+parseCommand cmd = Message $ SBS.toShort $ BS.pack cmd
 
 runServer :: ServerCfg -> IO ()
 runServer cfg = do
@@ -165,7 +166,7 @@ runServer cfg = do
     fromSocket sock
       & decoder
       & S.map getCompact
-      & S.store (S.map (((show addr <> ": ") <>) . show) >>> S.print)
+      & S.chain (putStrLn . ((show addr <> ": ") <>) . show)
       & S.break (== Bye)
       & fmap (S.take 1)
       & join

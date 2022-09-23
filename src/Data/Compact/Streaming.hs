@@ -161,10 +161,8 @@ unsafeDecodeCompactWith ::
 unsafeDecodeCompactWith scompact lo = do
   -- sad, importCompact don't accept any accumulator...
   stRef <- newIORef lo
-  liftIO $ putStrLn $ "To Decode " <> show (length $ serializedCompactBlockList scompact, serializedCompactBlockList scompact)
   cpt <- withRunInIO $ \unlift ->
     importCompact scompact $ \dest len -> do
-      putStrLn $ "Deserialising to " <> show (dest, len)
       st <- readIORef stRef
       _ :> st' <-
         unlift $
@@ -173,25 +171,18 @@ unsafeDecodeCompactWith scompact lo = do
             & S.foldM
               -- Safe use; as the chunk will be copied by copyBytes.
               ( \ !off chunk -> liftIO $ do
-                  BS.unsafeUseAsCStringLen chunk $ \(ptr, len) ->
-                    copyBytes off ptr len
+                  BS.unsafeUseAsCStringLen chunk $ \(ptr, size) ->
+                    copyBytes off ptr size
                   pure $! off `plusPtr` BS.length chunk
               )
               (pure dest)
               pure
-      putStrLn "Stream folding done."
       writeIORef stRef st'
-      putStrLn "Leftovr stream written to IORef"
-  liftIO $ putStrLn "Compact import finished"
   lo' <- readIORef stRef
-  liftIO $ putStrLn "readIORef final!"
   case cpt of
-    Nothing -> do
-      liftIO $ putStrLn "Reporting failure"
+    Nothing ->
       pure (lo', Left "Compact deserialization failed; perhaps the data is corrupt?")
-    Just a -> do
-      liftIO $ putStrLn "Seems successed"
-      pure (lo', Right a)
+    Just a -> pure (lo', Right a)
 
 getSomeSerializedCompact :: Get SomeSerializedCompact
 getSomeSerializedCompact = do

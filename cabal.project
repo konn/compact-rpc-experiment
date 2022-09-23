@@ -2,6 +2,3 @@ packages: *.cabal
 
 package *
   ghc-options: -fno-PIE -no-pie -fno-PIC
-
-static: true
-executable-static: true
