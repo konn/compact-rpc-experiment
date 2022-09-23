@@ -1,0 +1,9 @@
+{
+  "emeraldwalk.runonsave": {
+    "commands": [
+      { "cmd": "hpack", "match": "package.yaml$", "isAsync": true },
+      { "cmd": "hpack", "match": "\\.hs$", "isAsync": true }
+    ]
+  },
+  "haskell.plugin.rename.config.crossModule": true
+}
